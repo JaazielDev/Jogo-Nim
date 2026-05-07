@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NIM — Jogo das Pilhas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --accent1: #e8ff47;
+      --accent2: #ff4747;
+      --p1: #e8ff47;
+      --p2: #47c8ff;
+      --text: #f0f0f0;
+      --muted: #555;
+      --coin: #e8ff47;
+      --coin-shadow: #8a9900;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.4;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(56px, 12vw, 96px);
+      letter-spacing: 6px;
+      line-height: 1;
+      color: var(--accent1);
+      text-shadow: 0 0 40px rgba(232, 255, 71, 0.3);
+    }
+
+    .subtitle {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+
+    /* Player banner */
+    .player-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 14px 20px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .player-banner::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--current-player-color, var(--p1));
+      transition: background 0.4s;
+    }
+
+    .player-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .player-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 3px;
+      color: var(--current-player-color, var(--p1));
+      transition: color 0.4s;
+    }
+
+    .player-score {
+      text-align: right;
+    }
+
+    .score-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .score-values {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .score-p1 { color: var(--p1); }
+    .score-p2 { color: var(--p2); }
+
+    /* Piles */
+    .piles-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .pile-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 16px 20px;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .pile-row:hover:not(.disabled) {
+      border-color: var(--accent1);
+      background: #1e1e1e;
+    }
+
+    .pile-row.selected {
+      border-color: var(--accent1);
+      background: #1e1e1e;
+    }
+
+    .pile-row.selected::after {
+      content: '◀ SELECIONADA';
+      position: absolute;
+      right: 20px;
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--accent1);
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .pile-row.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .pile-index {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      color: var(--muted);
+      width: 32px;
+      flex-shrink: 0;
+    }
+
+    .pile-coins {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex: 1;
+      min-height: 36px;
+      align-items: center;
+    }
+
+    .coin {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--coin);
+      box-shadow: 0 3px 0 var(--coin-shadow), 0 0 12px rgba(232, 255, 71, 0.2);
+      transition: transform 0.15s, opacity 0.15s;
+      flex-shrink: 0;
+    }
+
+    .coin.removing {
+      transform: scale(0);
+      opacity: 0;
+    }
+
+    .pile-count {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px;
+      color: var(--text);
+      width: 56px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* Controls */
+    .controls {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .controls-title {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .qty-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .qty-btn {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 20px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .qty-btn:hover:not(:disabled) {
+      border-color: var(--accent1);
+      color: var(--accent1);
+    }
+
+    .qty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .qty-display {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px;
+      color: var(--accent1);
+      min-width: 64px;
+      text-align: center;
+    }
+
+    .qty-hint {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+
+    .btn-play {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent1);
+      color: #0d0d0d;
+      border: none;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 4px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-play:hover:not(:disabled) { opacity: 0.85; }
+    .btn-play:active:not(:disabled) { transform: scale(0.98); }
+    .btn-play:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Game over */
+    .gameover {
+      display: none;
+      text-align: center;
+      border: 1px solid var(--accent1);
+      background: var(--surface);
+      padding: 40px 24px;
+      position: relative;
+    }
+
+    .gameover.show { display: block; }
+
+    .gameover-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 72px;
+      letter-spacing: 6px;
+      color: var(--accent1);
+      text-shadow: 0 0 40px rgba(232, 255, 71, 0.5);
+      line-height: 1;
+    }
+
+    .gameover-winner {
+      font-size: 14px;
+      letter-spacing: 4px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 8px;
+      margin-bottom: 32px;
+    }
+
+    .gameover-winner span {
+      color: var(--text);
+    }
+
+    .btn-restart {
+      background: transparent;
+      border: 1px solid var(--accent1);
+      color: var(--accent1);
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 3px;
+      padding: 12px 32px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .btn-restart:hover {
+      background: var(--accent1);
+      color: #0d0d0d;
+    }
+
+    /* Log */
+    .log {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 16px;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+
+    .log-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .log-entry {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 2px 0;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry .hl { color: var(--text); }
+
+    /* Instructions */
+    .instructions {
+      margin-top: 24px;
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.9;
+      letter-spacing: 1px;
+      border-left: 2px solid var(--border);
+      padding-left: 16px;
+    }
+
+    @media (max-width: 480px) {
+      .pile-row.selected::after { display: none; }
+      .coin { width: 22px; height: 22px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <h1>NIM</h1>
+    <p class="subtitle">Jogo das Pilhas — 2 Jogadores</p>
+  </header>
+
+  <!-- Player banner -->
+  <div class="player-banner" id="playerBanner">
+    <div>
+      <div class="player-label">Vez de</div>
+      <div class="player-name" id="playerName">Jogador 1</div>
+    </div>
+    <div class="player-score">
+      <div class="score-label">Vitórias</div>
+      <div class="score-values">
+        <span class="score-p1" id="score1">J1: 0</span>
+        <span class="score-p2" id="score2">J2: 0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Piles -->
+  <div class="piles-section" id="pilesSection"></div>
+
+  <!-- Controls -->
+  <div class="controls" id="controls">
+    <div class="controls-title">Quantas peças retirar?</div>
+    <div class="qty-row">
+      <button class="qty-btn" id="btnMinus">−</button>
+      <div class="qty-display" id="qtyDisplay">1</div>
+      <button class="qty-btn" id="btnPlus">+</button>
+      <div class="qty-hint">Selecione uma<br>pilha acima</div>
+    </div>
+    <button class="btn-play" id="btnPlay" disabled>JOGAR</button>
+  </div>
+
+  <!-- Game over -->
+  <div class="gameover" id="gameover">
+    <div class="gameover-title">FIM!</div>
+    <div class="gameover-winner">Vencedor: <span id="winnerName">—</span></div>
+    <button class="btn-restart" id="btnRestart">↺ JOGAR NOVAMENTE</button>
+  </div>
+
+  <!-- Log -->
+  <div class="log">
+    <div class="log-title">Histórico</div>
+    <div id="logEntries"></div>
+  </div>
+
+  <!-- Instructions -->
+  <div class="instructions">
+    REGRAS · Clique em uma pilha para selecioná-la.<br>
+    Escolha quantas peças retirar (mínimo 1).<br>
+    Quem retirar a última peça PERDE.
+  </div>
+
+</div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  const INITIAL_PILES = [3, 4, 5];
+  let pilhas, jogador, selectedPile, qty, scores, gameOver;
+
+  function initGame() {
+    pilhas = [...INITIAL_PILES];
+    jogador = 1;
+    selectedPile = null;
+    qty = 1;
+    gameOver = false;
+    scores = scores || { 1: 0, 2: 0 };
+    render();
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  function render() {
+    renderBanner();
+    renderPiles();
+    renderControls();
+    renderGameover();
+  }
+
+  function renderBanner() {
+    const color = jogador === 1 ? 'var(--p1)' : 'var(--p2)';
+    document.getElementById('playerName').textContent = `Jogador ${jogador}`;
+    document.getElementById('playerName').style.color = color;
+    document.getElementById('playerBanner').style.setProperty('--current-player-color', color);
+    document.getElementById('score1').textContent = `J1: ${scores[1]}`;
+    document.getElementById('score2').textContent = `J2: ${scores[2]}`;
+  }
+
+  function renderPiles() {
+    const section = document.getElementById('pilesSection');
+    section.innerHTML = '';
+    pilhas.forEach((count, i) => {
+      const row = document.createElement('div');
+      row.className = 'pile-row' +
+        (count === 0 ? ' disabled' : '') +
+        (selectedPile === i && count > 0 ? ' selected' : '');
+
+      row.innerHTML = `
+        <div class="pile-index">${i}</div>
+        <div class="pile-coins" id="coins-${i}">
+          ${Array.from({length: count}, () => '<div class="coin"></div>').join('')}
+        </div>
+        <div class="pile-count">${count}</div>
+      `;
+
+      if (count > 0) {
+        row.addEventListener('click', () => selectPile(i));
+      }
+      section.appendChild(row);
+    });
+  }
+
+  function renderControls() {
+    const max = selectedPile !== null ? pilhas[selectedPile] : 1;
+    qty = Math.min(qty, max);
+    if (qty < 1) qty = 1;
+
+    document.getElementById('qtyDisplay').textContent = qty;
+    document.getElementById('btnMinus').disabled = qty <= 1;
+    document.getElementById('btnPlus').disabled = selectedPile === null || qty >= pilhas[selectedPile];
+    document.getElementById('btnPlay').disabled = selectedPile === null || gameOver;
+
+    document.getElementById('controls').style.display = gameOver ? 'none' : 'block';
+  }
+
+  function renderGameover() {
+    const el = document.getElementById('gameover');
+    if (gameOver) {
+      el.classList.add('show');
+      // Loser is current jogador (took last piece); winner is the other
+      const winner = jogador === 1 ? 2 : 1;
+      document.getElementById('winnerName').textContent = `Jogador ${winner}`;
+    } else {
+      el.classList.remove('show');
+    }
+  }
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  function selectPile(i) {
+    if (pilhas[i] === 0 || gameOver) return;
+    selectedPile = i;
+    qty = Math.min(qty, pilhas[i]);
+    renderPiles();
+    renderControls();
+  }
+
+  function changeQty(delta) {
+    if (selectedPile === null) return;
+    qty = Math.max(1, Math.min(pilhas[selectedPile], qty + delta));
+    renderControls();
+  }
+
+  function playMove() {
+    if (selectedPile === null || gameOver) return;
+
+    const p = selectedPile;
+    const q = qty;
+
+    // Animate removed coins
+    const coinEls = document.querySelectorAll(`#coins-${p} .coin`);
+    const toRemove = Array.from(coinEls).slice(-q);
+    toRemove.forEach(c => c.classList.add('removing'));
+
+    addLog(jogador, p, q, pilhas[p]);
+
+    setTimeout(() => {
+      pilhas[p] -= q;
+
+      // Check end: all zeros
+      const total = pilhas.reduce((a, b) => a + b, 0);
+      if (total === 0) {
+        // The player who just took the last piece loses
+        const winner = jogador === 1 ? 2 : 1;
+        scores[winner]++;
+        gameOver = true;
+        jogador = jogador === 1 ? 2 : 1; // keep banner showing current player context
+        render();
+        return;
+      }
+
+      // Switch player
+      jogador = jogador === 1 ? 2 : 1;
+      selectedPile = null;
+      qty = 1;
+      render();
+    }, 200);
+  }
+
+  function addLog(player, pile, amount, before) {
+    const entries = document.getElementById('logEntries');
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = `<span class="hl">J${player}</span> retirou <span class="hl">${amount}</span> da pilha <span class="hl">${pile}</span> (era ${before})`;
+    entries.prepend(div);
+  }
+
+  // ── Events ─────────────────────────────────────────────────────────────────
+  document.getElementById('btnMinus').addEventListener('click', () => changeQty(-1));
+  document.getElementById('btnPlus').addEventListener('click', () => changeQty(+1));
+  document.getElementById('btnPlay').addEventListener('click', playMove);
+  document.getElementById('btnRestart').addEventListener('click', () => {
+    document.getElementById('logEntries').innerHTML = '';
+    initGame();
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  initGame();
+</script>
+</body>
+</html>
